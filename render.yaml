@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: can-v2x-ids
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: waitress-serve --listen=0.0.0.0:$PORT app:app
+    healthCheckPath: /api/ready
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: V2X_MACRO_F1_REVIEW_THRESHOLD
+        value: "0.70"

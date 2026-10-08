@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+.venv311/
+.venv-py311/
+*.sqlite3
+*.db
+data/can/raw/*.csv
+data/can/processed/*.csv
+data/v2x/raw/*.csv
+data/v2x/processed/*.csv
+*.pkl
+.env
+.pytest_cache/
+
+# Runtime model artifacts required by the deployed Flask application.
+!ml/can/model.pkl
+!ml/v2x/model.pkl
+!ml/v2x/veremi_model.pkl
+
+# Compact labeled holdout samples used by the existing CAN/VeReMi test pages.
+!data/can/processed/can_hcrl_holdout_samples.csv
+!data/v2x/processed/v2x_veremi_holdout_samples.csv

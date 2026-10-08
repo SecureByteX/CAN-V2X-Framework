@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCRL CAN Dataset Evaluation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark px-4">
+            <a class="navbar-brand" href="/dashboard">VEHICULAR DATASET EVALUATION CENTER</a>
+        <div class="navbar-nav ms-auto gap-3">
+            <a class="nav-link fw-semibold" href="/dashboard">Overview Dashboard</a>
+            <a class="nav-link active fw-semibold text-info" href="/can">CAN IDS Node</a>
+            <a class="nav-link fw-semibold text-warning" href="/v2x">VeReMi Dataset</a>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-info fw-bold mb-0">CAN BUS IN-VEHICLE NETWORK MONITORING NODE</h4>
+            <span class="badge bg-secondary p-2" id="simStatus">Simulation Idle</span>
+        </div>
+
+        <div class="card p-3 mb-4">
+            <h6 class="text-muted mb-3">HCRL CAR-HACKING CLASSES</h6>
+            <div id="canScenarioButtons" class="d-flex flex-wrap gap-2" aria-label="HCRL CAN dataset classes"></div>
+            <div class="mt-3 pt-2 border-top border-secondary d-flex align-items-center gap-2">
+                <input type="checkbox" id="persistToDb" class="form-check-input" checked>
+                <label for="persistToDb" class="form-check-label text-light small">
+                    Persist verified security events to V-SOC Dashboard (SQLite database)
+                </label>
+            </div>
+        </div>
+
+        <div class="card p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-muted mb-0">RAW CAN TRAFFIC INGESTION &amp; PARSER</h6>
+                <span class="small text-muted">Supports Candump, HCRL raw text, CSV, and JSON</span>
+            </div>
+            <p class="small text-muted mb-2">Paste raw CAN messages to parse fields, extract rolling window features, and execute ML inference:</p>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadSampleText('normal')">Sample HCRL Normal</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadSampleText('dos')">Sample DoS Flood</button>
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadSampleText('fuzzy')">Sample Fuzzy Attack</button>
+                <button type="button" class="btn btn-sm btn-outline-info" onclick="loadSampleText('gear')">Sample Gear Spoof</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSampleText('candump')">Sample Candump Log</button>
+            </div>
+            <textarea id="rawCanInput" class="form-control bg-dark text-light border-secondary font-monospace" rows="3" placeholder="can0  316   [8]  05 21 68 09 21 21 00 6F&#10;can0  000   [8]  00 00 00 00 00 00 00 00"></textarea>
+            <div class="mt-2 d-flex gap-2">
+                <button type="button" class="btn btn-info btn-cyber" id="btnIngestCan">Ingest &amp; Inspect CAN Frames</button>
+                <button type="button" class="btn btn-outline-secondary" id="btnClearCan">Clear</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>CAN DETECTION STREAM &amp; HOLDOUT RESULTS</span>
+                <span id="detectionSummaryBadge" class="badge bg-dark border text-muted">0 records</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark-custom align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>CAN ID</th>
+                                <th>DLC</th>
+                                <th>Payload Bytes</th>
+                                <th>Ground Truth</th>
+                                <th>ML Prediction</th>
+                                <th>Outcome</th>
+                                <th>Confidence</th>
+                                <th>Rule-Based Severity Band</th>
+                            </tr>
+                        </thead>
+                        <tbody id="canStreamTable">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let canBatchPending = false;
+
+        const SAMPLE_TEXTS = {
+            normal: 'Timestamp: 1478198376.389427  ID: 0316  DLC: 8  05 21 68 09 21 21 00 6f\nTimestamp: 1478198376.390427  ID: 00C0  DLC: 8  0A 66 01 20 00 00 00 00',
+            dos: 'Timestamp: 1478198377.100000  ID: 0000  DLC: 8  00 00 00 00 00 00 00 00\nTimestamp: 1478198377.100500  ID: 0000  DLC: 8  00 00 00 00 00 00 00 00\nTimestamp: 1478198377.101000  ID: 0000  DLC: 8  00 00 00 00 00 00 00 00',
+            fuzzy: 'Timestamp: 1478198378.200000  ID: 03C8  DLC: 8  AA BB CC DD EE FF 11 22\nTimestamp: 1478198378.200500  ID: 04CE  DLC: 8  12 34 56 78 9A BC DE F0',
+            gear: 'Timestamp: 1478198379.300000  ID: 043F  DLC: 8  00 50 7F 00 00 20 00 00\nTimestamp: 1478198379.302000  ID: 043F  DLC: 8  00 50 7F 00 00 20 00 00',
+            candump: 'can0  316   [8]  05 21 68 09 21 21 00 6F\n(1478198380.123456) can0 000#0000000000000000'
+        };
+
+        function loadSampleText(type) {
+            document.getElementById('rawCanInput').value = SAMPLE_TEXTS[type] || '';
+        }
+
+        function renderRows(records) {
+            const tbody = document.getElementById('canStreamTable');
+            tbody.innerHTML = records.map(r => `
+                <tr>
+                    <td>${r.timestamp}</td>
+                    <td><code>${r.can_id}</code></td>
+                    <td>${r.dlc}</td>
+                    <td><code>${r.data}</code></td>
+                    <td><span class="badge badge-${(r.severity || 'info').toLowerCase()}">${r.actual_label || 'Unlabeled'}</span></td>
+                    <td><span class="badge badge-${(r.severity || 'info').toLowerCase()}">${r.attack_type}</span></td>
+                    <td>${r.outcome}</td>
+                    <td>${(r.confidence * 100).toFixed(1)}%</td>
+                    <td><span class="badge badge-${(r.severity || 'info').toLowerCase()}">${r.severity}</span></td>
+                </tr>
+            `).join('');
+            document.getElementById('detectionSummaryBadge').innerText = `${records.length} records evaluated`;
+        }
+
+        function loadCanScenarios() {
+            fetch('/api/dataset-classes?dataset=can_hcrl')
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+                    return data;
+                })
+                .then(data => {
+                    const labels = [...data.classes].sort((left, right) => {
+                        if (left === 'NORMAL') return -1;
+                        if (right === 'NORMAL') return 1;
+                        return left.localeCompare(right);
+                    });
+                    const container = document.getElementById('canScenarioButtons');
+                    container.innerHTML = labels.map(label => `
+                        <button type="button" class="btn ${label === 'NORMAL' ? 'btn-success' : 'btn-outline-info'} btn-cyber" data-can-label="${label}">
+                            ${label === 'NORMAL' ? 'Normal Traffic' : `${label} Attack`}
+                        </button>
+                    `).join('');
+                    container.querySelectorAll('button').forEach(button => {
+                        button.addEventListener('click', () => evaluateCanClass(button.dataset.canLabel));
+                    });
+                    document.getElementById('simStatus').innerText = `${data.dataset}: ${data.classes.length} trained classes; ${data.model} model.`;
+                })
+                .catch(error => {
+                    document.getElementById('simStatus').innerText = error.message;
+                });
+        }
+
+        function evaluateCanClass(label) {
+            if (canBatchPending) return;
+            canBatchPending = true;
+            const tbody = document.getElementById('canStreamTable');
+            tbody.innerHTML = '';
+            document.getElementById('simStatus').innerText = `Evaluating HCRL holdout class: ${label}...`;
+            const saveToDb = document.getElementById('persistToDb').checked;
+            fetch('/api/dataset-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dataset: 'can_hcrl', label: label, limit: 50, save_to_db: saveToDb })
+            })
+            .then(async res => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+                return data;
+            })
+            .then(data => {
+                const normal = label === 'NORMAL';
+                const outcomeCount = normal ? data.true_negative_count : data.true_positive_count;
+                const outcomeName = normal ? 'true negatives' : 'true positives';
+                const savedMsg = saveToDb ? ' (saved to V-SOC log)' : '';
+                document.getElementById('simStatus').innerText = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}${savedMsg}.`;
+                renderRows(data.records);
+            })
+            .catch(error => {
+                tbody.innerHTML = '';
+                document.getElementById('simStatus').innerText = error.message;
+            })
+            .finally(() => {
+                canBatchPending = false;
+            });
+        }
+
+        document.getElementById('btnIngestCan').addEventListener('click', () => {
+            const rawText = document.getElementById('rawCanInput').value.trim();
+            if (!rawText) {
+                alert('Please enter or select sample CAN traffic.');
+                return;
+            }
+            if (canBatchPending) return;
+            canBatchPending = true;
+            document.getElementById('simStatus').innerText = 'Ingesting and parsing raw CAN traffic...';
+            const saveToDb = document.getElementById('persistToDb').checked;
+            fetch('/api/can/ingest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload: rawText, save_to_db: saveToDb })
+            })
+            .then(async res => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || `Ingestion failed (${res.status})`);
+                return data;
+            })
+            .then(data => {
+                const savedMsg = saveToDb ? ' (saved to V-SOC log)' : '';
+                document.getElementById('simStatus').innerText = `Ingested ${data.processed_count} frames; ${data.attack_count} attacks detected${savedMsg}.`;
+                renderRows(data.records);
+            })
+            .catch(error => {
+                document.getElementById('simStatus').innerText = error.message;
+            })
+            .finally(() => {
+                canBatchPending = false;
+            });
+        });
+
+        document.getElementById('btnClearCan').addEventListener('click', () => {
+            document.getElementById('rawCanInput').value = '';
+            document.getElementById('canStreamTable').innerHTML = '';
+            document.getElementById('detectionSummaryBadge').innerText = '0 records';
+            document.getElementById('simStatus').innerText = 'Simulation Idle';
+        });
+
+        loadCanScenarios();
+    </script>
+</body>
+</html>

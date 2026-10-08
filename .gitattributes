@@ -1,0 +1,5 @@
+/data/can/raw/CAN[[:space:]]—[[:space:]]HCRL[[:space:]]Car-Hacking[[:space:]]Dataset/DoS_dataset.csv filter=lfs diff=lfs merge=lfs -text
+/data/can/raw/CAN[[:space:]]—[[:space:]]HCRL[[:space:]]Car-Hacking[[:space:]]Dataset/Fuzzy_dataset.csv filter=lfs diff=lfs merge=lfs -text
+/data/can/raw/CAN[[:space:]]—[[:space:]]HCRL[[:space:]]Car-Hacking[[:space:]]Dataset/RPM_dataset.csv filter=lfs diff=lfs merge=lfs -text
+/data/can/raw/CAN[[:space:]]—[[:space:]]HCRL[[:space:]]Car-Hacking[[:space:]]Dataset/gear_dataset.csv filter=lfs diff=lfs merge=lfs -text
+/data/can/raw/CAN[[:space:]]—[[:space:]]HCRL[[:space:]]Car-Hacking[[:space:]]Dataset/normal_run_data/normal_run_data.txt filter=lfs diff=lfs merge=lfs -text
