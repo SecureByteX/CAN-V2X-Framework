@@ -247,3 +247,5 @@ The HCRL upload contains CAN data only. Raw VeReMi is trained separately with al
 - LLM security incident investigation assistant
 - MITRE ATT&CK mapping for ICS / automotive systems
 - Automated countermeasure and V-SOC integration
+#   C A N - V 2 X - F r a m e w o r k  
+ 
