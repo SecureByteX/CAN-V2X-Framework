@@ -18,6 +18,13 @@ data/v2x/processed/*.csv
 *.pkl
 .env
 .pytest_cache/
+server_live.log
+serve_check_tmp.py
+diag_tmp.py
+livecheck_tmp.py
+metrics_tmp.py
+inspect_tmp.py
+rawcan_tmp.py
 
 # Runtime model artifacts required by the deployed Flask application.
 !ml/can/model.pkl
