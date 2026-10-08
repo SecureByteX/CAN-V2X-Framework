@@ -1,12 +1,14 @@
 import app as flask_app
 
 
-def test_security_headers_are_present():
+def test_nonauth_security_headers_are_present():
     response = flask_app.app.test_client().get('/api/health')
 
     assert response.headers.get('X-Content-Type-Options') == 'nosniff'
     assert response.headers.get('X-Frame-Options') == 'DENY'
-    assert 'nosniff' not in response.get_data(as_text=True) or True
+    # /can and /v2x use legitimate inline scripts: no blocking CSP may ship
+    # without nonces (a CSP broke every button on those pages).
+    assert 'Content-Security-Policy' not in response.headers
 
 
 def test_api_token_is_enforced_when_configured(monkeypatch):

@@ -50,12 +50,11 @@ def _security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'DENY')
     response.headers.setdefault('Referrer-Policy', 'no-referrer')
-    response.headers.setdefault(
-        'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
-        "style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; "
-        "connect-src 'self'; frame-ancestors 'none'",
-    )
+    # NOTE: no Content-Security-Policy here on purpose. /can and /v2x
+    # legitimately use inline <script> blocks and inline onclick handlers;
+    # an emitted CSP without per-request nonces would silently block every
+    # button on those pages (this exact outage). Reintroduce CSP only with
+    # nonces/hashes covering all inline code.
     return response
 
 # Ensure Database initialized

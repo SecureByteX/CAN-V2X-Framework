@@ -202,6 +202,7 @@
             .then(data => {
                 const savedMsg = saveToDb ? ' (saved to V-SOC log)' : '';
                 document.getElementById('simStatus').innerText = `Ingested ${data.processed_count} frames; ${data.attack_count} attacks detected${savedMsg}.`;
+                document.getElementById('detectionSummaryBadge').innerText = `${data.processed_count} records evaluated`;
                 renderRows(data.records);
             })
             .catch(error => {

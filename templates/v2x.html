@@ -113,7 +113,14 @@
                 const normal = label === 'Benign';
                 const outcomeCount = normal ? data.true_negative_count : data.true_positive_count;
                 const outcomeName = normal ? 'true negatives' : 'true positives';
-                document.getElementById('v2xSimStatus').innerText = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}.`;
+                let statusMsg = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}.`;
+                if (!normal && data.processed_count > 0 && outcomeCount === 0) {
+                    statusMsg += ' Model did not confirm this class in the sampled rows (low VeReMi accuracy) — try Benign or another class.';
+                }
+                if (!data.records.length) {
+                    statusMsg += ' No exact-match rows to display.';
+                }
+                document.getElementById('v2xSimStatus').innerText = statusMsg;
                 tbody.innerHTML = data.records.map(r => `
                     <tr>
                         <td>${r.timestamp}</td>
