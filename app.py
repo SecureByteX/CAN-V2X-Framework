@@ -23,6 +23,40 @@ from ml.can.stream_processor import CANStreamProcessor
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['MAX_CONTENT_LENGTH'] = int(config.MAX_CONTENT_LENGTH_MB * 1024 * 1024)
+
+
+def _api_token_valid(provided):
+    expected = (config.API_TOKEN or '').strip()
+    if not expected:
+        return True  # auth disabled for academic demo; enable via API_TOKEN
+    import hmac
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
+@app.before_request
+def _enforce_api_token():
+    if request.method == 'POST' and request.path.startswith('/api/'):
+        token = request.headers.get('X-API-Token', '')
+        auth = request.headers.get('Authorization', '')
+        if auth.lower().startswith('bearer '):
+            token = token or auth[7:].strip()
+        if not _api_token_valid(token):
+            return jsonify({'error': 'Unauthorized. Provide a valid API token.'}), 401
+
+
+@app.after_request
+def _security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'no-referrer')
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'",
+    )
+    return response
 
 # Ensure Database initialized
 init_db()
@@ -732,8 +766,4 @@ def get_model_performance():
     })
 
 if __name__ == '__main__':
-    app.run(
-        host=os.environ.get('HOST', '0.0.0.0'),
-        port=int(os.environ.get('PORT', '5000')),
-        debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true'
-    )
+    app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)

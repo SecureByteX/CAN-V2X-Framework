@@ -4,6 +4,20 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 SECRET_KEY = os.environ.get('SECRET_KEY') or os.urandom(32).hex()
 
+# Optional API token. When set, all POST /api/* endpoints require it via
+# the X-API-Token header (or "Authorization: Bearer <token>").
+# Empty by default so the academic demo dashboard keeps working out of the box.
+API_TOKEN = os.environ.get('API_TOKEN', '').strip()
+
+# Server binding (production must use HOST/PORT env vars, never localhost literals).
+HOST = os.environ.get('HOST', '0.0.0.0')
+PORT = int(os.environ.get('PORT', '5000'))
+DEBUG = os.environ.get('FLASK_DEBUG', '').lower() == 'true'
+
+# Reject oversized ingestion payloads (10 MB default).
+MAX_CONTENT_LENGTH_MB = float(os.environ.get('MAX_CONTENT_LENGTH_MB', '10'))
+
+
 # Database
 DATABASE_PATH = os.environ.get('DATABASE_PATH') or os.path.join(
     BASE_DIR, 'database', 'ids_system.db'

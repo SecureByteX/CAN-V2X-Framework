@@ -162,8 +162,11 @@ python -m pytest -q
 
 ### Step 4: Launch the Production Web Server
 ```powershell
-waitress-serve --listen=0.0.0.0:5000 app:app
+gunicorn app:app --bind 0.0.0.0:5000 --workers 2 --timeout 120
 ```
+
+On Windows without Gunicorn support, `waitress-serve --listen=0.0.0.0:5000 app:app`
+remains an acceptable local alternative; Linux/cloud deployments use Gunicorn per `Procfile`.
 
 ### Step 5: Access the Web Interface
 Open `http://127.0.0.1:5000/` in your browser. The root page opens directly to the dashboard.
@@ -179,7 +182,7 @@ The dashboard separates historical synthetic simulator events from offline datas
 - **CAN**: Balanced HCRL sample of 500,000 rows (100,000 per class), reservoir-sampled across the supplied captures. Each class's last 20% by timestamp is held out. The selected algorithm is chosen by macro F1.
 - **VeReMi**: All 2,269,540 raw rows and all 20 original labels, with the last 20% by receive time held out separately within each label. The 16 numeric position, speed, acceleration, heading, and noise fields are used as model features. `rcvTime`, `ReceiverID`, and `AttackerType` are excluded from feature selection.
 - **Model comparison**: Logistic Regression (SGD), Random Forest, and XGBoost are compared on the same split within each dataset. Macro F1 is used for model selection. Weighted and macro precision, recall, F1, accuracy, false-positive rate, and repeated-batch inference time are shown in the dashboard.
-- **Current held-out results**: HCRL CAN XGBoost achieves 99.78% accuracy and 99.78% macro F1. Raw VeReMi XGBoost achieves 21.52% accuracy and 22.98% macro F1. The VeReMi result is low and the model is not production-ready; its 20 classes overlap substantially in the supplied features. Do not present its score as 100%.
+- **Current held-out results**: HCRL CAN XGBoost achieves 99.93% accuracy and 99.93% macro F1 (Logistic Regression 98.45% / 98.45%, Random Forest 99.74% / 99.74%). Raw VeReMi XGBoost achieves 21.52% accuracy and 22.98% macro F1 (Random Forest 21.03% / 22.49%, Logistic Regression-SGD 13.14% / 10.83%). The VeReMi result is low and the model is not production-ready; its 20 classes overlap substantially in the supplied features. Do not present its score as high.
 - **Severity and confidence**: Severity is a rule-based display band derived from the predicted class, not a machine-learning output or a label supplied by either dataset. Confidence is the model's predicted-class probability and is not a guarantee of correctness.
 
 Retrain the raw VeReMi benchmark using:
@@ -194,7 +197,7 @@ This is separate from the legacy five-class synthetic V2X simulator model.
 
 ## Deploy as a Public Website
 
-The project includes a Render Blueprint in `render.yaml`. Push the project to a GitHub repository, create a new Blueprint in Render, and select that repository. Commit the three model artifacts and the two compact holdout CSV files explicitly unignored in `.gitignore`; without them the readiness check fails and the dataset testing pages cannot work. Render then builds the app and provides a public HTTPS URL. The production Waitress server binds to Render's assigned port, and Render generates the Flask secret key. The dashboard and API are open to anyone who can access the URL; add authentication and access controls before public deployment.
+The project includes a Render Blueprint in `render.yaml`. Push the project to a GitHub repository, create a new Blueprint in Render, and select that repository. Commit the three model artifacts and the two compact holdout CSV files explicitly unignored in `.gitignore`; without them the readiness check fails and the dataset testing pages cannot work. Render then builds the app and provides a public HTTPS URL. The production Gunicorn server binds to Render's assigned port (`Procfile`: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`), and Render generates the Flask secret key. Set `API_TOKEN` in the Render environment to require a token on all POST `/api/*` endpoints (demo mode leaves it empty). The dashboard and API are open to anyone who can access the URL unless `API_TOKEN` is set; set it before public deployment.
 
 This prototype uses SQLite at the path configured by `DATABASE_PATH` (default: `database/ids_system.db`). On Render's free web service, local files can be discarded when the service restarts or redeploys, so event history is not durable. Configure `DATABASE_PATH` to a persistent mounted path or migrate to a managed database before relying on long-term alert storage. Free services may also sleep when idle.
 

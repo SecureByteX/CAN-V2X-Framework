@@ -131,6 +131,17 @@ def init_db():
         'CREATE INDEX IF NOT EXISTS idx_v2x_events_dashboard ON v2x_events(outcome, created_at DESC)'
     )
     
+    # One-time honest backfill: rows written by older builds may have a NULL
+    # outcome. They are historical records of unknown verification state, so
+    # mark them UNVERIFIED rather than guessing TRUE/FALSE.
+    for table in ('can_events', 'v2x_events', 'can_alerts', 'v2x_alerts'):
+        try:
+            cursor.execute(
+                f"UPDATE {table} SET outcome = 'UNVERIFIED' WHERE outcome IS NULL"
+            )
+        except sqlite3.Error:
+            pass
+
     conn.commit()
     conn.close()
     print("[Database] Initialized SQLite tables successfully.")
