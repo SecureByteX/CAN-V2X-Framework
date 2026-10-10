@@ -39,6 +39,8 @@ V2X_RAW_DATA_PATH = os.path.join(BASE_DIR, 'data', 'v2x', 'raw', 'v2x_traffic_sy
 V2X_PROCESSED_DATA_PATH = os.path.join(BASE_DIR, 'data', 'v2x', 'processed', 'v2x_features.csv')
 V2X_VEREMI_RAW_DATA_PATH = os.path.join(BASE_DIR, 'data', 'v2x', 'raw', 'Preprocessed VeReMi for V2.csv')
 V2X_VEREMI_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'veremi_model.pkl')
+V2X_VEREMI_ONNX_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'veremi_model.onnx')
+V2X_VEREMI_MODEL_METADATA_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'veremi_model.json')
 V2X_VEREMI_SAMPLE_PATH = os.path.join(BASE_DIR, 'data', 'v2x', 'processed', 'v2x_veremi_holdout_samples.csv')
 V2X_MACRO_F1_REVIEW_THRESHOLD = float(os.environ.get('V2X_MACRO_F1_REVIEW_THRESHOLD', '0.70'))
 if not 0.0 <= V2X_MACRO_F1_REVIEW_THRESHOLD <= 1.0:
@@ -47,3 +49,7 @@ if not 0.0 <= V2X_MACRO_F1_REVIEW_THRESHOLD <= 1.0:
 # Model Paths
 CAN_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'can', 'model.pkl')
 V2X_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'model.pkl')
+CAN_ONNX_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'can', 'model.onnx')
+CAN_MODEL_METADATA_PATH = os.path.join(BASE_DIR, 'ml', 'can', 'model.json')
+V2X_ONNX_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'model.onnx')
+V2X_MODEL_METADATA_PATH = os.path.join(BASE_DIR, 'ml', 'v2x', 'model.json')

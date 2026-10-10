@@ -1,10 +1,11 @@
-import joblib
+import json
 import numpy as np
 import os
 
 import config
 from ml.prediction_outcomes import classify_prediction
 from ml.v2x.veremi import FEATURE_COLUMNS, RECEIVER_COLUMN, TARGET_COLUMN, TIME_COLUMN
+from ml.onnx_model import LabelDecoder, OnnxClassifier
 
 
 def veremi_severity(label):
@@ -20,13 +21,14 @@ def veremi_severity(label):
 
 
 class VeReMiPredictor:
-    def __init__(self, model_path=config.V2X_VEREMI_MODEL_PATH):
+    def __init__(self, model_path=config.V2X_VEREMI_ONNX_MODEL_PATH, metadata_path=config.V2X_VEREMI_MODEL_METADATA_PATH):
         if not os.path.exists(model_path):
-            raise FileNotFoundError(f'VeReMi model file not found at {model_path}. Train it first.')
-        artifact = joblib.load(model_path)
-        self.model = artifact['model']
+            raise FileNotFoundError(f'VeReMi ONNX model file not found at {model_path}. Export the trained model first.')
+        with open(metadata_path, encoding='utf-8') as metadata_file:
+            artifact = json.load(metadata_file)
+        self.model = OnnxClassifier(model_path)
         self.model_name = artifact['model_name']
-        self.label_encoder = artifact['label_encoder']
+        self.label_encoder = LabelDecoder(artifact['classes'])
         self.feature_names = artifact['feature_names']
         self.classes = list(artifact['classes'])
         self.class_distribution = artifact['class_distribution']

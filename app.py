@@ -4,7 +4,6 @@ import json
 import pandas as pd
 import numpy as np
 import os
-import joblib
 import sqlite3
 import time
 
@@ -732,8 +731,10 @@ def get_statistics():
 @app.route('/api/model-performance')
 def get_model_performance():
     try:
-        can_artifact = joblib.load(config.CAN_MODEL_PATH) if os.path.exists(config.CAN_MODEL_PATH) else {}
-        veremi_artifact = joblib.load(config.V2X_VEREMI_MODEL_PATH) if os.path.exists(config.V2X_VEREMI_MODEL_PATH) else {}
+        with open(config.CAN_MODEL_METADATA_PATH, encoding='utf-8') as metadata_file:
+            can_artifact = json.load(metadata_file)
+        with open(config.V2X_VEREMI_MODEL_METADATA_PATH, encoding='utf-8') as metadata_file:
+            veremi_artifact = json.load(metadata_file)
     except (OSError, EOFError, ValueError, KeyError, AttributeError):
         app.logger.exception('Offline model evaluation artifacts could not be loaded')
         return jsonify({'error': 'Offline evaluation artifacts are unavailable.'}), 503

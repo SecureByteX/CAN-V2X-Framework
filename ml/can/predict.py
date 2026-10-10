@@ -1,4 +1,4 @@
-import joblib
+import json
 import pandas as pd
 import numpy as np
 import os
@@ -8,19 +8,21 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 import config
 from ml.feature_engineering import FeatureExtractor
 from ml.prediction_outcomes import classify_prediction
+from ml.onnx_model import LabelDecoder, OnnxClassifier
 
 class CANPredictor:
     """
     Real-time CAN IDS Predictor loaded from saved model artifact.
     """
-    def __init__(self, model_path=config.CAN_MODEL_PATH):
+    def __init__(self, model_path=config.CAN_ONNX_MODEL_PATH, metadata_path=config.CAN_MODEL_METADATA_PATH):
         if not os.path.exists(model_path):
-            raise FileNotFoundError(f"CAN Model file not found at {model_path}. Train model first.")
+            raise FileNotFoundError(f"CAN ONNX model file not found at {model_path}. Export the trained model first.")
         
-        artifact = joblib.load(model_path)
-        self.model = artifact['model']
+        with open(metadata_path, encoding='utf-8') as metadata_file:
+            artifact = json.load(metadata_file)
+        self.model = OnnxClassifier(model_path)
         self.model_name = artifact['model_name']
-        self.label_encoder = artifact['label_encoder']
+        self.label_encoder = LabelDecoder(artifact['classes'])
         self.feature_names = artifact['feature_names']
         self.dataset_name = artifact.get('dataset_name', 'CAN')
         self.dataset_rows = artifact.get('dataset_rows')

@@ -8,3 +8,9 @@ data/v2x/processed/v2x_features.csv
 # Vercel serves the public copy from the CDN; Flask's static folder is local-only.
 static/
 tests/
+tools/
+*.pkl
+ml/can/train.py
+ml/v2x/train.py
+ml/v2x/train_veremi.py
+ml/can/prepare_hcrl.py
