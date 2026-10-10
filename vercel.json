@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{tests/**,static/**,data/can/raw/**,data/v2x/raw/**,data/can/processed/can_features.csv,data/can/processed/can_hcrl_training.csv,data/v2x/processed/v2x_features.csv}"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+# Large source datasets are only used by the offline training scripts.
+data/can/raw/
+data/v2x/raw/
+data/can/processed/can_features.csv
+data/can/processed/can_hcrl_training.csv
+data/v2x/processed/v2x_features.csv
+
+# Vercel serves the public copy from the CDN; Flask's static folder is local-only.
+static/
+tests/
