@@ -416,6 +416,22 @@ def get_dataset_batch():
         return jsonify({'error': 'limit must be an integer between 1 and 100.'}), 400
 
     samples = pd.read_csv(sample_path)
+    # Holdout files created by older preprocessing versions used different
+    # names for the ground-truth column. Normalize those aliases so a stale
+    # or regenerated deployment artifact cannot turn a button click into 500.
+    normalized_columns = {
+        str(column).strip().lower(): column for column in samples.columns
+    }
+    if label_column not in samples.columns:
+        aliases = ('label', 'attack_type', 'attacktype', 'class') if dataset == 'can_hcrl' else ('attackertype', 'label', 'attack_type', 'class')
+        resolved = next((normalized_columns[name] for name in aliases if name in normalized_columns), None)
+        if resolved is None:
+            return jsonify({'error': f'Held-out samples for {dataset} do not contain a ground-truth label column.'}), 503
+        if dataset == 'can_hcrl':
+            samples = samples.rename(columns={resolved: 'label'})
+            label_column = 'label'
+        else:
+            label_column = resolved
     selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
     if dataset == 'can_hcrl':
         predictions = predictor.predict_single_record(selected) if not selected.empty else []

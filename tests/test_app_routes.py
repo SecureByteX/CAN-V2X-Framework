@@ -70,6 +70,36 @@ def test_veremi_batch_uses_veremi_persistence_adapter(monkeypatch):
     assert len(saved) == 1
 
 
+def test_can_batch_accepts_legacy_ground_truth_column(monkeypatch):
+    def predict(records):
+        assert 'label' in records.columns
+        return [{
+            'timestamp': 1.0, 'can_id': '0x1', 'dlc': 8, 'data': '00',
+            'actual_label': 'DOS', 'attack_type': 'DOS',
+            'outcome': 'TRUE_POSITIVE', 'confidence': 0.9, 'severity': 'CRITICAL',
+        }]
+
+    monkeypatch.setattr(
+        flask_app,
+        'can_predictor',
+        SimpleNamespace(
+            label_encoder=SimpleNamespace(classes_=['DOS']),
+            predict_single_record=predict,
+        ),
+    )
+    monkeypatch.setattr(flask_app.pd, 'read_csv', lambda path: flask_app.pd.DataFrame({
+        'timestamp': [1.0], 'can_id': ['0x1'], 'dlc': [8], 'data': ['00'],
+        'AttackType': ['DOS'],
+    }))
+
+    response = flask_app.app.test_client().post('/api/dataset-batch', json={
+        'dataset': 'can_hcrl', 'label': 'DOS',
+    })
+
+    assert response.status_code == 200
+    assert response.json['processed_count'] == 1
+
+
 def test_health_reports_loaded_models(monkeypatch):
     model = SimpleNamespace(
         model_name='Test Model',
