@@ -89,7 +89,7 @@ def test_can_batch_accepts_legacy_ground_truth_column(monkeypatch):
     )
     monkeypatch.setattr(flask_app.pd, 'read_csv', lambda path: flask_app.pd.DataFrame({
         'timestamp': [1.0], 'can_id': ['0x1'], 'dlc': [8], 'data': ['00'],
-        'AttackType': ['DOS'],
+        '\ufeffAttackType': ['DOS'],
     }))
 
     response = flask_app.app.test_client().post('/api/dataset-batch', json={

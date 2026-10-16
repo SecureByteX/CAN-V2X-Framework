@@ -420,7 +420,8 @@ def get_dataset_batch():
     # names for the ground-truth column. Normalize those aliases so a stale
     # or regenerated deployment artifact cannot turn a button click into 500.
     normalized_columns = {
-        str(column).strip().lower(): column for column in samples.columns
+        str(column).replace('\ufeff', '').strip().lower().replace(' ', '_'): column
+        for column in samples.columns
     }
     if label_column not in samples.columns:
         aliases = ('label', 'attack_type', 'attacktype', 'class') if dataset == 'can_hcrl' else ('attackertype', 'label', 'attack_type', 'class')
