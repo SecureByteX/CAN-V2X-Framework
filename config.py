@@ -19,15 +19,16 @@ MAX_CONTENT_LENGTH_MB = float(os.environ.get('MAX_CONTENT_LENGTH_MB', '10'))
 
 
 # Database
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 DATABASE_PATH = os.environ.get('DATABASE_PATH')
-if not DATABASE_PATH:
+if not DATABASE_PATH and not DATABASE_URL:
     if os.environ.get('VERCEL') == '1':
         # Vercel's deployed filesystem is read-only except for /tmp. This is
         # scratch storage only; event history needs an external database to persist.
         DATABASE_PATH = os.path.join('/tmp', 'ids_system.db')
     else:
         DATABASE_PATH = os.path.join(BASE_DIR, 'database', 'ids_system.db')
-SQLALCHEMY_DATABASE_URI = f'sqlite:///{DATABASE_PATH}'
+SQLALCHEMY_DATABASE_URI = DATABASE_URL or f'sqlite:///{DATABASE_PATH}'
 
 # Data Paths
 CAN_RAW_DATA_PATH = os.path.join(BASE_DIR, 'data', 'can', 'raw', 'can_traffic_synthetic.csv')

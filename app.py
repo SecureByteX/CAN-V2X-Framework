@@ -8,7 +8,7 @@ import sqlite3
 import time
 
 import config
-from database.db import init_db, get_db_connection
+from database.db import DatabaseError, init_db, get_db_connection
 from database.models import EventDAO
 from ml.can.predict import CANPredictor
 from ml.v2x.predict import V2XPredictor
@@ -123,7 +123,7 @@ def get_health():
         conn = get_db_connection()
         conn.execute('SELECT 1').fetchone()
         database_ready = True
-    except sqlite3.Error:
+    except DatabaseError:
         app.logger.exception('Dashboard database health check failed')
     finally:
         if conn is not None:
@@ -195,7 +195,6 @@ def get_soc_dashboard():
     conn = None
     try:
         conn = get_db_connection()
-        conn.row_factory = sqlite3.Row
         source_tables = {
             'CAN': ('can_events', 'can_id'),
             'V2X': ('v2x_events', 'sender_id'),
@@ -330,7 +329,7 @@ def get_soc_dashboard():
                 SELECT created_at FROM v2x_events
             )"""
         ).fetchone()['updated_at']
-    except sqlite3.Error:
+    except DatabaseError:
         app.logger.exception('SOC dashboard data query failed')
         return jsonify({'error': 'Dashboard data is unavailable.'}), 503
     finally:

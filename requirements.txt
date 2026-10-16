@@ -3,3 +3,4 @@ pandas==2.2.2
 numpy==1.26.4
 onnxruntime==1.18.1
 gunicorn==22.0.0
+psycopg[binary]==3.2.3
