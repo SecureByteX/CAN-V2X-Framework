@@ -427,6 +427,13 @@ def get_dataset_batch():
         aliases = ('label', 'attack_type', 'attacktype', 'class') if dataset == 'can_hcrl' else ('attackertype', 'label', 'attack_type', 'class')
         resolved = next((normalized_columns[name] for name in aliases if name in normalized_columns), None)
         if resolved is None:
+            # Last-resort compatibility for regenerated CSVs whose label
+            # header changed: find the column containing the requested class.
+            requested = str(label).strip().casefold()
+            resolved = next((column for column in samples.columns if requested in {
+                str(value).strip().casefold() for value in samples[column].dropna().head(1000)
+            }), None)
+        if resolved is None:
             return jsonify({'error': f'Held-out samples for {dataset} do not contain a ground-truth label column.'}), 503
         if dataset == 'can_hcrl':
             samples = samples.rename(columns={resolved: 'label'})
