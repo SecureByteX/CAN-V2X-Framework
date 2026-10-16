@@ -522,7 +522,9 @@ def get_dataset_batch():
         if (record['outcome'] == 'TRUE_NEGATIVE' and label == normal_label)
         or (record['outcome'] == 'TRUE_POSITIVE' and label != normal_label)
     ]
-    response_records = verified if ground_truth_available else predictions
+    # Show every evaluated row so misclassified classes remain visible in the
+    # dashboard. Only verified rows are persisted as security events below.
+    response_records = predictions
     save_to_db = bool(data.get('save_to_db', False))
     if save_to_db:
         try:
