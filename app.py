@@ -478,12 +478,21 @@ def get_dataset_batch():
         elif dataset == 'can_hcrl':
             samples = samples.rename(columns={resolved: 'label'})
             label_column = 'label'
-            selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+            selected = samples[
+                samples[label_column].astype(str).str.strip().str.casefold()
+                == str(label).strip().casefold()
+            ].head(limit).copy()
         else:
             label_column = resolved
-            selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+            selected = samples[
+                samples[label_column].astype(str).str.strip().str.casefold()
+                == str(label).strip().casefold()
+            ].head(limit).copy()
     else:
-        selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+        selected = samples[
+            samples[label_column].astype(str).str.strip().str.casefold()
+            == str(label).strip().casefold()
+        ].head(limit).copy()
     compatibility_warning = None
     try:
         selected, missing_features = prepare_dataset_records(
