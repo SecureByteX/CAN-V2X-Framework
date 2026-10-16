@@ -135,7 +135,10 @@ def get_health():
         'veremi': predictor_health(veremi_predictor),
         'database': {
             'ready': database_ready,
-            'persistence': 'ephemeral' if os.environ.get('VERCEL') == '1' else 'local',
+            'persistence': (
+                'persistent' if config.DATABASE_URL
+                else ('ephemeral' if os.environ.get('VERCEL') == '1' else 'local')
+            ),
         },
         'api': {'ready': True},
         'evaluation_samples': {
