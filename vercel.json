@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "app.py": {
+      "includeFiles": "{data/can/processed/can_hcrl_holdout_samples.csv,data/v2x/processed/v2x_veremi_holdout_samples.csv}",
       "excludeFiles": "{tests/**,static/**,tools/**,ml/**/train*.py,ml/**/prepare_hcrl.py,ml/**/*.pkl,data/can/raw/**,data/v2x/raw/**,data/can/processed/can_features.csv,data/can/processed/can_hcrl_training.csv,data/v2x/processed/v2x_features.csv}"
     }
   }
