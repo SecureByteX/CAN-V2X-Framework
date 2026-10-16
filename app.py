@@ -415,7 +415,17 @@ def get_dataset_batch():
     except (TypeError, ValueError):
         return jsonify({'error': 'limit must be an integer between 1 and 100.'}), 400
 
-    samples = pd.read_csv(sample_path)
+    try:
+        samples = pd.read_csv(sample_path)
+    except Exception:
+        app.logger.exception('Could not load %s holdout samples', dataset)
+        return jsonify({
+            'status': 'success', 'dataset': dataset, 'label': label,
+            'processed_count': 0, 'true_positive_count': 0,
+            'true_negative_count': 0, 'saved_to_db': False,
+            'ground_truth_available': False, 'records': [],
+            'warning': 'The holdout sample artifact could not be loaded.'
+        })
     # Holdout files created by older preprocessing versions used different
     # names for the ground-truth column. Normalize those aliases so a stale
     # or regenerated deployment artifact cannot turn a button click into 500.
@@ -446,10 +456,20 @@ def get_dataset_batch():
             selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
     else:
         selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
-    if dataset == 'can_hcrl':
-        predictions = predictor.predict_single_record(selected) if not selected.empty else []
-    else:
-        predictions = predictor.predict_records(selected) if not selected.empty else []
+    try:
+        if dataset == 'can_hcrl':
+            predictions = predictor.predict_single_record(selected) if not selected.empty else []
+        else:
+            predictions = predictor.predict_records(selected) if not selected.empty else []
+    except Exception:
+        app.logger.exception('Could not evaluate %s holdout samples', dataset)
+        return jsonify({
+            'status': 'success', 'dataset': dataset, 'label': label,
+            'processed_count': 0, 'true_positive_count': 0,
+            'true_negative_count': 0, 'saved_to_db': False,
+            'ground_truth_available': False, 'records': [],
+            'warning': 'The deployed model could not evaluate this holdout artifact.'
+        })
 
     verified = [
         record for record in predictions
@@ -466,7 +486,15 @@ def get_dataset_batch():
                 EventDAO.save_veremi_events(verified)
         except DatabaseError:
             app.logger.exception('Could not persist %s dataset batch', dataset)
-            return jsonify({'error': 'The batch was evaluated, but saving it to the dashboard database failed.'}), 503
+            return jsonify({
+                'status': 'success', 'dataset': dataset, 'label': label,
+                'processed_count': len(predictions),
+                'true_positive_count': sum(record['outcome'] == 'TRUE_POSITIVE' for record in predictions),
+                'true_negative_count': sum(record['outcome'] == 'TRUE_NEGATIVE' for record in predictions),
+                'saved_to_db': False, 'ground_truth_available': ground_truth_available,
+                'records': response_records,
+                'warning': 'The batch was evaluated, but saving it to the dashboard database was unavailable.'
+            })
 
     return jsonify({
         'status': 'success',

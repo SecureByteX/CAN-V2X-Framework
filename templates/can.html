@@ -171,6 +171,7 @@
                 if (data.ground_truth_available === false) {
                     statusMsg = `${data.processed_count} CAN predictions completed. Ground-truth labels are unavailable in this deployed holdout artifact, so results were not saved as verified alerts.`;
                 }
+                if (data.warning) statusMsg = data.warning;
                 document.getElementById('simStatus').innerText = statusMsg;
                 renderRows(data.records);
             })

@@ -117,6 +117,7 @@
                 if (data.ground_truth_available === false) {
                     statusMsg = `${data.processed_count} VeReMi predictions completed. Ground-truth labels are unavailable in this deployed holdout artifact, so results were not saved as verified alerts.`;
                 }
+                if (data.warning) statusMsg = data.warning;
                 if (!normal && data.processed_count > 0 && outcomeCount === 0) {
                     statusMsg += ' Model did not confirm this class in the sampled rows (low VeReMi accuracy) — try Benign or another class.';
                 }
