@@ -367,6 +367,34 @@ def unsupported_ground_truth_labels(raw_df, predictor):
     return sorted(actual_labels - trained_labels)
 
 
+def prepare_dataset_records(dataset, records, predictor, requested_label):
+    """Adapt an older/degraded deployed holdout artifact to the loaded model."""
+    records = records.copy()
+    missing_features = []
+    if dataset == 'can_hcrl':
+        defaults = {
+            'timestamp': 0.0,
+            'can_id': 'unknown',
+            'dlc': 0,
+            'data': '',
+            'label': requested_label,
+        }
+    else:
+        defaults = {
+            'rcvTime': 0.0,
+            'ReceiverID': 'unknown',
+            'AttackerType': requested_label,
+        }
+    for column, default in defaults.items():
+        if column not in records.columns:
+            records[column] = default
+    for column in getattr(predictor, 'feature_names', []):
+        if column not in records.columns:
+            records[column] = 0.0
+            missing_features.append(column)
+    return records, missing_features
+
+
 @app.route('/api/dataset-classes')
 def get_dataset_classes():
     dataset = request.args.get('dataset')
@@ -456,7 +484,16 @@ def get_dataset_batch():
             selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
     else:
         selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+    compatibility_warning = None
     try:
+        selected, missing_features = prepare_dataset_records(
+            dataset, selected, predictor, label
+        )
+        if missing_features:
+            compatibility_warning = (
+                'The holdout artifact is missing model columns; compatibility '
+                'defaults were used for: ' + ', '.join(missing_features)
+            )
         if dataset == 'can_hcrl':
             predictions = predictor.predict_single_record(selected) if not selected.empty else []
         else:
@@ -493,7 +530,7 @@ def get_dataset_batch():
                 'true_negative_count': sum(record['outcome'] == 'TRUE_NEGATIVE' for record in predictions),
                 'saved_to_db': False, 'ground_truth_available': ground_truth_available,
                 'records': response_records,
-                'warning': 'The batch was evaluated, but saving it to the dashboard database was unavailable.'
+                'warning': compatibility_warning or 'The batch was evaluated, but saving it to the dashboard database was unavailable.'
             })
 
     return jsonify({
@@ -506,6 +543,7 @@ def get_dataset_batch():
         'saved_to_db': save_to_db,
         'ground_truth_available': ground_truth_available,
         'records': response_records,
+        'warning': compatibility_warning,
     })
 
 
