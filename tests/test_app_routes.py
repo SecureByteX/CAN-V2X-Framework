@@ -30,6 +30,46 @@ def test_api_is_available_without_login():
     assert 'summary' in response.json
 
 
+def test_veremi_batch_uses_veremi_persistence_adapter(monkeypatch):
+    saved = []
+
+    def predict_records(records):
+        return [{
+            'timestamp': 1.0,
+            'receiver_id': 'receiver-1',
+            'actual_label': 'DoSRandom',
+            'attack_type': 'DoSRandom',
+            'outcome': 'TRUE_POSITIVE',
+            'confidence': 0.9,
+            'severity': 'HIGH',
+            'pos_0': 10.0,
+            'pos_1': 20.0,
+            'speed_0': 1.0,
+            'speed_1': 2.0,
+            'acceleration_0': 0.1,
+            'acceleration_1': 0.2,
+        }]
+
+    monkeypatch.setattr(
+        flask_app,
+        'veremi_predictor',
+        SimpleNamespace(
+            label_encoder=SimpleNamespace(classes_=['Benign', 'DoSRandom']),
+            predict_records=predict_records,
+        ),
+    )
+    monkeypatch.setattr(flask_app.pd, 'read_csv', lambda path: flask_app.pd.DataFrame({'AttackerType': ['DoSRandom']}))
+    monkeypatch.setattr(flask_app.EventDAO, 'save_veremi_events', lambda events: saved.extend(events))
+
+    response = flask_app.app.test_client().post('/api/dataset-batch', json={
+        'dataset': 'v2x_veremi', 'label': 'DoSRandom', 'save_to_db': True,
+    })
+
+    assert response.status_code == 200
+    assert response.json['saved_to_db'] is True
+    assert len(saved) == 1
+
+
 def test_health_reports_loaded_models(monkeypatch):
     model = SimpleNamespace(
         model_name='Test Model',

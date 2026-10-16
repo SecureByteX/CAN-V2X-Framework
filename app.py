@@ -429,12 +429,14 @@ def get_dataset_batch():
     ]
     save_to_db = bool(data.get('save_to_db', False))
     if save_to_db:
-        if dataset == 'can_hcrl':
-            for record in verified:
-                EventDAO.save_can_event(record)
-        else:
-            for record in verified:
-                EventDAO.save_v2x_event(record)
+        try:
+            if dataset == 'can_hcrl':
+                EventDAO.save_can_events(verified)
+            else:
+                EventDAO.save_veremi_events(verified)
+        except DatabaseError:
+            app.logger.exception('Could not persist %s dataset batch', dataset)
+            return jsonify({'error': 'The batch was evaluated, but saving it to the dashboard database failed.'}), 503
 
     return jsonify({
         'status': 'success',
