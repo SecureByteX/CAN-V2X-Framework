@@ -133,7 +133,10 @@ def get_health():
         'can': predictor_health(can_predictor),
         'legacy_synthetic_v2x': predictor_health(v2x_predictor),
         'veremi': predictor_health(veremi_predictor),
-        'database': {'ready': database_ready},
+        'database': {
+            'ready': database_ready,
+            'persistence': 'ephemeral' if os.environ.get('VERCEL') == '1' else 'local',
+        },
         'api': {'ready': True},
         'evaluation_samples': {
             'can_ready': os.path.isfile(config.CAN_HCRL_HOLDOUT_PATH),

@@ -137,6 +137,8 @@ function renderHealth(health) {
     setStatus('v2xModelHealth', v2x.ready ? 'ready' : 'unavailable');
     setStatus('canReadyCard', can.ready ? 'Ready' : 'Unavailable');
     setStatus('v2xReadyCard', v2x.ready ? 'Ready' : 'Unavailable');
+    const storageNotice = document.getElementById('storageNotice');
+    if (storageNotice) storageNotice.hidden = values.database?.persistence !== 'ephemeral';
     document.getElementById('canModelName').textContent = can.model || 'Not available';
     document.getElementById('v2xModelName').textContent = v2x.model || 'Not available';
 

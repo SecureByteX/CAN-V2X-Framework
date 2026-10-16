@@ -176,6 +176,19 @@ body {
 }
 .soc-source-notice { margin-bottom: 1rem; }
 .soc-source-notice p { margin: 0; }
+.soc-storage-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid #3e5f7b;
+    border-radius: 8px;
+    background: #101e2d;
+    color: #c9e5fb;
+}
+.soc-storage-notice p { margin: 0; }
+.soc-storage-notice[hidden] { display: none; }
 .soc-source-indicator { flex: 0 0 0.6rem; width: 0.6rem; height: 0.6rem; margin-top: 0.42rem; border-radius: 50%; background: #f0b84e; }
 .soc-notice { margin-bottom: 1rem; border-color: #71363a; background: #261416; color: #ffd1d1; }
 .soc-notice[hidden] { display: none; }

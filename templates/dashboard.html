@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>V-SOC | Vehicular Security Operations Center</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20261010-2">
-    <script src="/static/js/dashboard.js?v=20261010-2" defer></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=20261016-1">
+    <script src="/static/js/dashboard.js?v=20261016-1" defer></script>
 </head>
 <body class="soc-page">
     <header class="soc-header">
@@ -36,6 +36,12 @@
             <span class="soc-source-indicator" aria-hidden="true"></span>
             <p><strong>No live vehicle feed is configured.</strong> The alert log below contains verified,
                 labeled simulator/test outcomes saved by this application; it is not a live CAN or V2X network feed.</p>
+        </section>
+
+        <section id="storageNotice" class="soc-storage-notice" aria-label="Event storage notice" hidden>
+            <span class="soc-source-indicator" aria-hidden="true"></span>
+            <p><strong>Deployment storage is temporary.</strong> Vercel serverless instances use ephemeral storage,
+                so simulator events are not shared with your local dashboard or guaranteed to survive a cold start.</p>
         </section>
 
         <section class="soc-summary" aria-label="Security summary">
