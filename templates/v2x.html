@@ -114,6 +114,9 @@
                 const outcomeCount = normal ? data.true_negative_count : data.true_positive_count;
                 const outcomeName = normal ? 'true negatives' : 'true positives';
                 let statusMsg = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}.`;
+                if (data.ground_truth_available === false) {
+                    statusMsg = `${data.processed_count} VeReMi predictions completed. Ground-truth labels are unavailable in this deployed holdout artifact, so results were not saved as verified alerts.`;
+                }
                 if (!normal && data.processed_count > 0 && outcomeCount === 0) {
                     statusMsg += ' Model did not confirm this class in the sampled rows (low VeReMi accuracy) — try Benign or another class.';
                 }

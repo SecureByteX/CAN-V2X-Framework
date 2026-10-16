@@ -167,7 +167,11 @@
                 const outcomeCount = normal ? data.true_negative_count : data.true_positive_count;
                 const outcomeName = normal ? 'true negatives' : 'true positives';
                 const savedMsg = saveToDb ? ' (saved to V-SOC log)' : '';
-                document.getElementById('simStatus').innerText = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}${savedMsg}.`;
+                let statusMsg = `${data.processed_count} held-out ${label} records; ${outcomeCount} matching ${outcomeName}${savedMsg}.`;
+                if (data.ground_truth_available === false) {
+                    statusMsg = `${data.processed_count} CAN predictions completed. Ground-truth labels are unavailable in this deployed holdout artifact, so results were not saved as verified alerts.`;
+                }
+                document.getElementById('simStatus').innerText = statusMsg;
                 renderRows(data.records);
             })
             .catch(error => {

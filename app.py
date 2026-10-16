@@ -423,6 +423,7 @@ def get_dataset_batch():
         str(column).replace('\ufeff', '').strip().lower().replace(' ', '_'): column
         for column in samples.columns
     }
+    ground_truth_available = True
     if label_column not in samples.columns:
         aliases = ('label', 'attack_type', 'attacktype', 'class') if dataset == 'can_hcrl' else ('attackertype', 'label', 'attack_type', 'class')
         resolved = next((normalized_columns[name] for name in aliases if name in normalized_columns), None)
@@ -434,13 +435,17 @@ def get_dataset_batch():
                 str(value).strip().casefold() for value in samples[column].dropna().head(1000)
             }), None)
         if resolved is None:
-            return jsonify({'error': f'Held-out samples for {dataset} do not contain a ground-truth label column.'}), 503
-        if dataset == 'can_hcrl':
+            ground_truth_available = False
+            selected = samples.head(limit).copy()
+        elif dataset == 'can_hcrl':
             samples = samples.rename(columns={resolved: 'label'})
             label_column = 'label'
+            selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
         else:
             label_column = resolved
-    selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+            selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
+    else:
+        selected = samples[samples[label_column].astype(str) == str(label)].head(limit).copy()
     if dataset == 'can_hcrl':
         predictions = predictor.predict_single_record(selected) if not selected.empty else []
     else:
@@ -451,6 +456,7 @@ def get_dataset_batch():
         if (record['outcome'] == 'TRUE_NEGATIVE' and label == normal_label)
         or (record['outcome'] == 'TRUE_POSITIVE' and label != normal_label)
     ]
+    response_records = verified if ground_truth_available else predictions
     save_to_db = bool(data.get('save_to_db', False))
     if save_to_db:
         try:
@@ -470,7 +476,8 @@ def get_dataset_batch():
         'true_positive_count': sum(record['outcome'] == 'TRUE_POSITIVE' for record in predictions),
         'true_negative_count': sum(record['outcome'] == 'TRUE_NEGATIVE' for record in predictions),
         'saved_to_db': save_to_db,
-        'records': verified,
+        'ground_truth_available': ground_truth_available,
+        'records': response_records,
     })
 
 
