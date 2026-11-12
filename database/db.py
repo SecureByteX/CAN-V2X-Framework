@@ -140,6 +140,62 @@ def init_db():
             recall_val REAL, f1_score REAL, fpr REAL,
             inference_time_ms REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''',
+        '''CREATE TABLE IF NOT EXISTS normalized_alerts (
+            alert_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL UNIQUE,
+            event_id TEXT, source TEXT NOT NULL, timestamp TEXT NOT NULL,
+            attack_type TEXT NOT NULL, predicted_class TEXT NOT NULL,
+            confidence REAL, severity TEXT, prediction_outcome TEXT NOT NULL,
+            vehicle_id TEXT, can_id TEXT, sender_id TEXT, receiver_id TEXT,
+            relevant_features_json TEXT, model_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''',
+        '''CREATE TABLE IF NOT EXISTS correlated_incidents (
+            incident_id TEXT PRIMARY KEY, title TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'NEW', severity TEXT,
+            risk_score REAL NOT NULL DEFAULT 0, risk_level TEXT NOT NULL DEFAULT 'LOW',
+            correlation_strength REAL NOT NULL DEFAULT 0,
+            correlation_reason TEXT, assigned_analyst TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_alert_at TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS incident_alert_mapping (
+            incident_id TEXT NOT NULL, alert_id TEXT NOT NULL UNIQUE,
+            linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (incident_id, alert_id),
+            FOREIGN KEY (incident_id) REFERENCES correlated_incidents(incident_id),
+            FOREIGN KEY (alert_id) REFERENCES normalized_alerts(alert_id))''',
+        '''CREATE TABLE IF NOT EXISTS risk_assessments (
+            assessment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_id TEXT, incident_id TEXT, risk_score REAL NOT NULL,
+            risk_level TEXT NOT NULL, factors_json TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (alert_id) REFERENCES normalized_alerts(alert_id),
+            FOREIGN KEY (incident_id) REFERENCES correlated_incidents(incident_id))''',
+        '''CREATE TABLE IF NOT EXISTS shap_explanations (
+            alert_id TEXT PRIMARY KEY, prediction TEXT NOT NULL,
+            explanation_json TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (alert_id) REFERENCES normalized_alerts(alert_id))''',
+        '''CREATE TABLE IF NOT EXISTS mitre_mappings (
+            mapping_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id TEXT NOT NULL, technique_id TEXT NOT NULL,
+            framework TEXT NOT NULL, technique_name TEXT NOT NULL,
+            justification TEXT NOT NULL, reference_url TEXT NOT NULL,
+            requires_review INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (incident_id) REFERENCES correlated_incidents(incident_id),
+            UNIQUE (incident_id, technique_id, framework))''',
+        '''CREATE TABLE IF NOT EXISTS llm_investigations (
+            investigation_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL,
+            status TEXT NOT NULL, provider TEXT, model_name TEXT,
+            result_json TEXT, error_summary TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (incident_id) REFERENCES correlated_incidents(incident_id))''',
+        '''CREATE TABLE IF NOT EXISTS incident_history (
+            history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id TEXT NOT NULL, previous_status TEXT,
+            new_status TEXT NOT NULL, note TEXT,
+            changed_by TEXT, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (incident_id) REFERENCES correlated_incidents(incident_id))''',
     ]
     for definition in table_definitions:
         cursor.execute(definition)
@@ -158,6 +214,9 @@ def init_db():
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_can_events_dashboard ON can_events(outcome, created_at DESC)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_v2x_events_dashboard ON v2x_events(outcome, created_at DESC)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_normalized_alerts_time ON normalized_alerts(timestamp DESC)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_incidents_status_time ON correlated_incidents(status, updated_at DESC)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_alert_mapping_alert ON incident_alert_mapping(alert_id)')
 
     for table in ('can_events', 'v2x_events', 'can_alerts', 'v2x_alerts'):
         try:

@@ -3,6 +3,7 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const NORMAL_LABELS = new Set(['NORMAL', 'BENIGN']);
 let searchDebounce = null;
 let latestRefreshId = 0;
+let activeIncident = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshButton').addEventListener('click', refreshDashboard);
@@ -19,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeDetails').addEventListener('click', () => {
         document.getElementById('alertDetails').close();
     });
+    document.getElementById('explainIncident').addEventListener('click', explainActiveIncident);
+    document.getElementById('investigateIncident').addEventListener('click', investigateActiveIncident);
     document.getElementById('alertDetails').addEventListener('click', event => {
         if (event.target === event.currentTarget) event.currentTarget.close();
     });
@@ -46,14 +49,27 @@ async function requestJson(url) {
     }
 }
 
+async function postJson(url, payload) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+        cache: 'no-store'
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Request failed with status ${response.status}.`);
+    return body;
+}
+
 async function refreshDashboard() {
     const refreshId = ++latestRefreshId;
     const refreshButton = document.getElementById('refreshButton');
     refreshButton.disabled = true;
     try {
-        const [dashboardResult, performanceResult] = await Promise.allSettled([
+        const [dashboardResult, performanceResult, incidentsResult] = await Promise.allSettled([
             requestJson(buildDashboardUrl()),
-            requestJson('/api/model-performance')
+            requestJson('/api/model-performance'),
+            requestJson('/api/incidents?limit=100')
         ]);
 
         if (refreshId !== latestRefreshId) return;
@@ -69,6 +85,11 @@ async function refreshDashboard() {
             renderPerformance(performanceResult.value);
         } else {
             renderPerformanceUnavailable(errorMessage(performanceResult.reason));
+        }
+        if (incidentsResult.status === 'fulfilled') {
+            renderIncidents(incidentsResult.value);
+        } else {
+            renderIncidentsUnavailable(errorMessage(incidentsResult.reason));
         }
     } finally {
         if (refreshId === latestRefreshId) refreshButton.disabled = false;
@@ -262,6 +283,9 @@ function appendCell(row, value, label) {
 }
 
 function showAlertDetails(alert) {
+    activeIncident = null;
+    document.getElementById('incidentActions').hidden = true;
+    document.getElementById('detailsTitle').textContent = 'Alert details';
     const details = [
         ['Alert ID', alert.id],
         ['Recorded at', alert.recorded_at],
@@ -300,6 +324,131 @@ function showAlertDetails(alert) {
     featureValues.className = 'soc-feature-values';
     list.append(featureTitle, featureValues);
     document.getElementById('alertDetails').showModal();
+}
+
+function renderIncidents(payload) {
+    const body = document.getElementById('incidentsTable');
+    const incidents = payload.incidents || [];
+    body.replaceChildren();
+    document.getElementById('incidentCount').textContent =
+        `${formatCount(incidents.length)} listed · ${formatCount(payload.summary?.open_count || 0)} open`;
+    document.getElementById('incidentNotice').textContent = '';
+    if (!incidents.length) {
+        body.append(createTableMessage(7, 'No incidents have been created from persisted prediction records.'));
+        return;
+    }
+    incidents.forEach(incident => {
+        const row = document.createElement('tr');
+        appendCell(row, incident.title || incident.incident_id, 'Incident');
+        const risk = document.createElement('td');
+        risk.dataset.label = 'Risk';
+        const badge = document.createElement('span');
+        badge.className = `soc-severity severity-${safeClass(incident.risk_level)}`;
+        badge.textContent = `${incident.risk_level} · ${Number(incident.risk_score).toFixed(0)}`;
+        risk.append(badge);
+        row.append(risk);
+        appendCell(row, formatCount(incident.alert_count), 'Alerts');
+        appendCell(row, incident.correlation_reason, 'Correlation');
+        const status = document.createElement('td');
+        status.dataset.label = 'Status';
+        const select = document.createElement('select');
+        select.setAttribute('aria-label', `Status for incident ${incident.incident_id}`);
+        ['NEW', 'INVESTIGATING', 'RESOLVED', 'FALSE_POSITIVE'].forEach(value => {
+            const option = new Option(value, value, false, value === incident.status);
+            select.add(option);
+        });
+        status.append(select);
+        row.append(status);
+        appendCell(row, formatDateTime(incident.updated_at), 'Last updated');
+        const actions = document.createElement('td');
+        actions.dataset.label = 'Actions';
+        const details = document.createElement('button');
+        details.type = 'button';
+        details.className = 'soc-button';
+        details.textContent = 'Details';
+        details.addEventListener('click', async () => {
+            try {
+                showIncidentDetails(await requestJson(`/api/incidents/${encodeURIComponent(incident.incident_id)}`));
+            } catch (error) {
+                document.getElementById('incidentNotice').textContent = errorMessage(error);
+            }
+        });
+        const update = document.createElement('button');
+        update.type = 'button';
+        update.className = 'soc-button';
+        update.textContent = 'Save status';
+        update.addEventListener('click', async () => {
+            update.disabled = true;
+            try {
+                await postJson(`/api/incidents/${encodeURIComponent(incident.incident_id)}/status`, { status: select.value });
+                await refreshDashboard();
+            } catch (error) {
+                document.getElementById('incidentNotice').textContent = errorMessage(error);
+            } finally {
+                update.disabled = false;
+            }
+        });
+        actions.append(details, update);
+        row.append(actions);
+        body.append(row);
+    });
+}
+
+function renderIncidentsUnavailable(message) {
+    document.getElementById('incidentCount').textContent = 'Unavailable';
+    document.getElementById('incidentNotice').textContent = `Incident data unavailable: ${message}`;
+    const body = document.getElementById('incidentsTable');
+    body.replaceChildren(createTableMessage(7, 'Incident data could not be loaded.'));
+}
+
+function showIncidentDetails(incident) {
+    activeIncident = incident;
+    document.getElementById('detailsTitle').textContent = 'Incident details';
+    const list = document.getElementById('detailsList');
+    list.replaceChildren();
+    const details = [
+        ['Incident ID', incident.incident_id], ['Status', incident.status],
+        ['Severity', incident.severity], ['Risk score', `${incident.risk_score}/100 · ${incident.risk_level}`],
+        ['Correlation strength', incident.correlation_strength], ['Correlation reason', incident.correlation_reason],
+        ['Assigned analyst', incident.assigned_analyst],
+        ['Risk factors', incident.risk?.factors ? JSON.stringify(incident.risk.factors) : null],
+        ['MITRE mapping', incident.mitre?.length ? incident.mitre.map(item => `${item.technique_id} ${item.technique_name} (${item.framework}; analyst review required)`).join('\n') : 'No justified technique mapping for this alert category.'],
+        ['Prediction evidence', incident.alerts?.map(item => `${item.source}: ${item.predicted_class} · ${item.prediction_outcome} · confidence ${displayValue(item.confidence)}`).join('\n')],
+        ['Investigation', incident.investigation?.result?.incident_summary || incident.investigation?.error_summary || 'No LLM investigation is stored.'],
+    ];
+    details.forEach(([label, value]) => {
+        const term = document.createElement('dt'); term.textContent = label;
+        const description = document.createElement('dd'); description.textContent = displayValue(value);
+        list.append(term, description);
+    });
+    document.getElementById('incidentActionStatus').textContent = '';
+    document.getElementById('incidentActions').hidden = false;
+    document.getElementById('alertDetails').showModal();
+}
+
+async function explainActiveIncident() {
+    if (!activeIncident) return;
+    const status = document.getElementById('incidentActionStatus');
+    status.textContent = 'Generating SHAP explanation…';
+    try {
+        const result = await requestJson(`/api/incidents/${encodeURIComponent(activeIncident.incident_id)}/explanation`);
+        status.textContent = result.top_features.map(item => `${item.feature}: ${Number(item.contribution) >= 0 ? 'increases' : 'decreases'} target probability (${Number(item.contribution).toFixed(4)})`).join(' · ');
+    } catch (error) {
+        status.textContent = errorMessage(error);
+    }
+}
+
+async function investigateActiveIncident() {
+    if (!activeIncident) return;
+    const status = document.getElementById('incidentActionStatus');
+    status.textContent = 'Requesting incident investigation…';
+    try {
+        const result = await postJson(`/api/incidents/${encodeURIComponent(activeIncident.incident_id)}/investigate`, {});
+        status.textContent = result.result?.incident_summary || 'Investigation completed.';
+        await refreshDashboard();
+    } catch (error) {
+        status.textContent = errorMessage(error);
+    }
 }
 
 function updateAttackTypeFilter(labels) {

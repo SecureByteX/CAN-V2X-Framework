@@ -67,8 +67,7 @@ class CANStreamProcessor:
 
         # Optionally persist security events to SQLite
         if save_to_db:
-            for pred in predictions:
-                EventDAO.save_can_event(pred)
+            EventDAO.save_can_events(predictions)
 
         return predictions
 

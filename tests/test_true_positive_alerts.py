@@ -37,8 +37,8 @@ def test_veremi_benign_class_is_treated_as_normal():
 @pytest.mark.parametrize(
     ('domain', 'mode', 'generator_name', 'generator_method', 'attack_name', 'attack_method', 'predictor_name', 'save_method'),
     [
-        ('can', 'INJECTION', 'can_gen', 'generate_normal_stream', 'can_att', 'inject_injection_attack', 'can_predictor', 'save_can_event'),
-        ('v2x', 'SPOOFING', 'v2x_gen', 'generate_normal_v2x_stream', 'v2x_att', 'inject_spoofing_attack', 'v2x_predictor', 'save_v2x_event'),
+        ('can', 'INJECTION', 'can_gen', 'generate_normal_stream', 'can_att', 'inject_injection_attack', 'can_predictor', 'save_can_events'),
+        ('v2x', 'SPOOFING', 'v2x_gen', 'generate_normal_v2x_stream', 'v2x_att', 'inject_spoofing_attack', 'v2x_predictor', 'save_v2x_events'),
     ],
 )
 def test_simulate_batch_returns_only_true_positives(
@@ -68,7 +68,7 @@ def test_simulate_batch_returns_only_true_positives(
             predict_single_record=lambda records: predictions
         )
     )
-    monkeypatch.setattr(EventDAO, save_method, lambda event: None)
+    monkeypatch.setattr(EventDAO, save_method, lambda events: None)
 
     response = flask_app.app.test_client().post(
         '/api/simulate-batch', json={'domain': domain, 'mode': mode}

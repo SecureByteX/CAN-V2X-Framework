@@ -255,6 +255,8 @@ body {
 .soc-table th, .soc-table td { padding: 0.63rem 0.55rem; border-bottom: 1px solid #273446; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
 .soc-table th { color: #b8c7d7; font-size: 0.72rem; font-weight: 650; }
 .soc-table td { color: #e1e8f0; font-size: 0.82rem; }
+.soc-table select { max-width: 10rem; padding: 0.45rem; color: #e1e8f0; background: #111d2b; border: 1px solid #35465a; border-radius: 5px; }
+.soc-table td .soc-button { margin: 0.15rem; padding: 0.42rem 0.55rem; font-size: 0.72rem; }
 .soc-alert-row { cursor: pointer; }
 .soc-alert-row:hover { background: #172331; }
 .soc-severity { display: inline-block; padding: 0.15rem 0.42rem; border: 1px solid #485568; border-radius: 5px; color: #d4dce5; font-size: 0.72rem; }
@@ -265,6 +267,8 @@ body {
 .soc-empty { padding: 1.3rem !important; color: #b9c5d2 !important; text-align: center !important; }
 .soc-empty-text { margin: 0; color: #b9c5d2; font-size: 0.84rem; }
 .soc-footnote { margin: 0.7rem 0 0; color: #aebccc; font-size: 0.75rem; }
+.soc-dialog-actions { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid #273446; }
+.soc-dialog-actions[hidden] { display: none; }
 
 .soc-domain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .soc-domain-panel { margin: 0; }

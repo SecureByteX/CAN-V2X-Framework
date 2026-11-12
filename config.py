@@ -49,6 +49,10 @@ V2X_VEREMI_SAMPLE_PATH = os.path.join(BASE_DIR, 'data', 'v2x', 'processed', 'v2x
 V2X_MACRO_F1_REVIEW_THRESHOLD = float(os.environ.get('V2X_MACRO_F1_REVIEW_THRESHOLD', '0.70'))
 if not 0.0 <= V2X_MACRO_F1_REVIEW_THRESHOLD <= 1.0:
     raise ValueError('V2X_MACRO_F1_REVIEW_THRESHOLD must be between 0 and 1.')
+LLM_INVESTIGATION_MIN_RISK = float(os.environ.get('LLM_INVESTIGATION_MIN_RISK', '70'))
+if not 0 <= LLM_INVESTIGATION_MIN_RISK <= 100:
+    raise ValueError('LLM_INVESTIGATION_MIN_RISK must be between 0 and 100.')
+LLM_INVESTIGATION_COOLDOWN_SECONDS = max(30, int(os.environ.get('LLM_INVESTIGATION_COOLDOWN_SECONDS', '60')))
 
 # Model Paths
 CAN_MODEL_PATH = os.path.join(BASE_DIR, 'ml', 'can', 'model.pkl')

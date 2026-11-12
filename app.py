@@ -6,10 +6,21 @@ import numpy as np
 import os
 import sqlite3
 import time
+import uuid
+from urllib.parse import urlparse
 
 import config
 from database.db import DatabaseError, init_db, get_db_connection
 from database.models import EventDAO
+from incident_manager import (
+    INCIDENT_STATUSES,
+    get_incident,
+    list_alerts,
+    list_incidents,
+    update_incident_status,
+)
+from explainability import ExplanationUnavailable, explain_prediction
+from llm_investigator import InvestigationUnavailable, configured as llm_configured, investigate
 from ml.can.predict import CANPredictor
 from ml.v2x.predict import V2XPredictor
 from ml.v2x.predict_veremi import VeReMiPredictor
@@ -414,6 +425,221 @@ def get_dataset_classes():
     })
 
 
+@app.route('/api/normalized-alerts')
+def get_normalized_alerts():
+    try:
+        limit = max(1, min(int(request.args.get('limit', 100)), 200))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'limit must be an integer between 1 and 200.'}), 400
+    source = request.args.get('source', '').strip().upper() or None
+    outcome = request.args.get('outcome', '').strip().upper() or None
+    if source and source not in {'CAN', 'V2X'}:
+        return jsonify({'error': 'source must be CAN or V2X.'}), 400
+    if outcome and outcome not in {
+        'TRUE_POSITIVE', 'TRUE_NEGATIVE', 'FALSE_POSITIVE', 'FALSE_NEGATIVE',
+        'MISCLASSIFIED_ATTACK', 'UNVERIFIED',
+    }:
+        return jsonify({'error': 'outcome is not supported.'}), 400
+    try:
+        return jsonify({'alerts': list_alerts(limit=limit, source=source, outcome=outcome)})
+    except DatabaseError:
+        app.logger.exception('Normalized alert query failed')
+        return jsonify({'error': 'Normalized alerts are unavailable.'}), 503
+
+
+@app.route('/api/incidents')
+def get_incidents():
+    try:
+        limit = max(1, min(int(request.args.get('limit', 100)), 200))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'limit must be an integer between 1 and 200.'}), 400
+    status = request.args.get('status', '').strip().upper() or None
+    if status and status not in INCIDENT_STATUSES:
+        return jsonify({'error': 'status must be NEW, INVESTIGATING, RESOLVED, or FALSE_POSITIVE.'}), 400
+    try:
+        incidents = list_incidents(status=status, limit=limit)
+        return jsonify({
+            'incidents': incidents,
+            'summary': {
+                'open_count': sum(item['status'] in {'NEW', 'INVESTIGATING'} for item in incidents),
+                'critical_count': sum(item['risk_level'] == 'CRITICAL' for item in incidents),
+            },
+        })
+    except DatabaseError:
+        app.logger.exception('Incident list query failed')
+        return jsonify({'error': 'Incidents are unavailable.'}), 503
+
+
+@app.route('/api/incidents/<incident_id>')
+def get_incident_detail(incident_id):
+    try:
+        incident = get_incident(incident_id)
+    except DatabaseError:
+        app.logger.exception('Incident detail query failed')
+        return jsonify({'error': 'Incident details are unavailable.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    return jsonify(incident)
+
+
+@app.route('/api/incidents/<incident_id>/status', methods=['POST'])
+def set_incident_status(incident_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        incident = update_incident_status(
+            incident_id,
+            data.get('status'),
+            changed_by=data.get('changed_by'),
+            note=data.get('note'),
+            assigned_analyst=data.get('assigned_analyst'),
+        )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except DatabaseError:
+        app.logger.exception('Incident status update failed')
+        return jsonify({'error': 'Incident status could not be updated.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    return jsonify(incident)
+
+
+@app.route('/api/incidents/<incident_id>/risk')
+def get_incident_risk(incident_id):
+    try:
+        incident = get_incident(incident_id)
+    except DatabaseError:
+        app.logger.exception('Incident risk query failed')
+        return jsonify({'error': 'Incident risk is unavailable.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    return jsonify({'incident_id': incident_id, 'risk': incident.get('risk'), 'risk_score': incident['risk_score'], 'risk_level': incident['risk_level']})
+
+
+@app.route('/api/incidents/<incident_id>/mitre')
+def get_incident_mitre(incident_id):
+    try:
+        incident = get_incident(incident_id)
+    except DatabaseError:
+        app.logger.exception('Incident MITRE query failed')
+        return jsonify({'error': 'Incident technique mapping is unavailable.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    return jsonify({'incident_id': incident_id, 'techniques': incident['mitre']})
+
+
+@app.route('/api/incidents/<incident_id>/explanation')
+def get_incident_explanation(incident_id):
+    try:
+        incident = get_incident(incident_id)
+    except DatabaseError:
+        app.logger.exception('Incident explanation query failed')
+        return jsonify({'error': 'Incident evidence is unavailable.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    if not incident['alerts']:
+        return jsonify({'error': 'Incident has no prediction evidence to explain.'}), 409
+    alert = incident['alerts'][-1]
+    conn = get_db_connection()
+    try:
+        cached = conn.execute(
+            'SELECT alert_id, prediction, explanation_json FROM shap_explanations WHERE alert_id = ?',
+            (alert['alert_id'],),
+        ).fetchone()
+        if cached:
+            return jsonify(json.loads(cached['explanation_json']))
+    finally:
+        conn.close()
+    if alert['source'] == 'CAN':
+        predictor, sample_path = can_predictor, config.CAN_HCRL_HOLDOUT_PATH
+    else:
+        features = alert.get('relevant_features') or {}
+        if veremi_predictor and set(veremi_predictor.feature_names).issubset(features):
+            predictor, sample_path = veremi_predictor, config.V2X_VEREMI_SAMPLE_PATH
+        else:
+            predictor, sample_path = v2x_predictor, config.V2X_PROCESSED_DATA_PATH
+    try:
+        explanation = explain_prediction(alert, predictor, sample_path)
+    except ExplanationUnavailable as exc:
+        return jsonify({'error': str(exc), 'available': False}), 503
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'INSERT INTO shap_explanations (alert_id, prediction, explanation_json) VALUES (?, ?, ?) ON CONFLICT (alert_id) DO UPDATE SET prediction = excluded.prediction, explanation_json = excluded.explanation_json, created_at = CURRENT_TIMESTAMP',
+            (alert['alert_id'], alert['predicted_class'], json.dumps(explanation)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify(explanation)
+
+
+@app.route('/api/incidents/<incident_id>/investigate', methods=['POST'])
+def investigate_incident(incident_id):
+    try:
+        incident = get_incident(incident_id)
+    except DatabaseError:
+        app.logger.exception('Incident investigation query failed')
+        return jsonify({'error': 'Incident evidence is unavailable.'}), 503
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    if incident['status'] not in {'NEW', 'INVESTIGATING'}:
+        return jsonify({'error': 'Only open incidents can be investigated.'}), 409
+    if incident['risk_score'] < config.LLM_INVESTIGATION_MIN_RISK:
+        return jsonify({'error': 'Incident risk is below the configured investigation threshold.', 'threshold': config.LLM_INVESTIGATION_MIN_RISK}), 409
+    if not llm_configured():
+        return jsonify({'error': 'LLM investigation is not configured.', 'available': False}), 503
+    conn = get_db_connection()
+    try:
+        recent = conn.execute(
+            "SELECT created_at FROM llm_investigations WHERE incident_id = ? AND created_at >= datetime('now', ?) ORDER BY created_at DESC LIMIT 1",
+            (incident_id, f'-{config.LLM_INVESTIGATION_COOLDOWN_SECONDS} seconds'),
+        ).fetchone()
+        if recent:
+            return jsonify({'error': 'An investigation was recently requested for this incident.', 'available': True}), 429
+    finally:
+        conn.close()
+    try:
+        result, model_name, provider_url = investigate(incident)
+        provider_host = urlparse(provider_url).hostname or 'configured-provider'
+        investigation_status = 'COMPLETED'
+        error_summary = None
+    except InvestigationUnavailable as exc:
+        result, model_name, provider_host = None, os.environ.get('LLM_MODEL'), 'configured-provider'
+        investigation_status = 'UNAVAILABLE'
+        error_summary = str(exc)
+    investigation_id = str(uuid.uuid4())
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            '''INSERT INTO llm_investigations (
+                investigation_id, incident_id, status, provider, model_name, result_json, error_summary
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (investigation_id, incident_id, investigation_status, provider_host, model_name,
+             json.dumps(result) if result is not None else None, error_summary),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    status_code = 200 if result is not None else 503
+    return jsonify({
+        'investigation_id': investigation_id,
+        'incident_id': incident_id,
+        'status': investigation_status,
+        'provider': provider_host,
+        'model': model_name,
+        'result': result,
+        'error': error_summary,
+    }), status_code
+
+
+@app.route('/api/incidents/<incident_id>/investigation')
+def get_incident_investigation(incident_id):
+    incident = get_incident(incident_id)
+    if incident is None:
+        return jsonify({'error': 'Incident was not found.'}), 404
+    return jsonify({'investigation': incident.get('investigation'), 'available': llm_configured()})
+
+
 @app.route('/api/dataset-batch', methods=['POST'])
 def get_dataset_batch():
     data = request.get_json(silent=True) or {}
@@ -632,8 +858,7 @@ def simulate_batch():
             raw_df = can_gen.generate_normal_stream(duration_sec=0.2, start_time=current_ts)
             
         predictions = predictor.predict_single_record(raw_df)
-        for p in predictions:
-            EventDAO.save_can_event(p)
+        EventDAO.save_can_events(predictions)
         true_positives = [p for p in predictions if p['outcome'] == 'TRUE_POSITIVE']
         true_negatives = [p for p in predictions if p['outcome'] == 'TRUE_NEGATIVE']
         unsupported_labels = unsupported_ground_truth_labels(raw_df, predictor)
@@ -667,8 +892,7 @@ def simulate_batch():
             raw_df = v2x_gen.generate_normal_v2x_stream(duration_sec=0.3, start_time=current_ts)
             
         predictions = predictor.predict_single_record(raw_df)
-        for p in predictions:
-            EventDAO.save_v2x_event(p)
+        EventDAO.save_v2x_events(predictions)
         true_positives = [p for p in predictions if p['outcome'] == 'TRUE_POSITIVE']
         true_negatives = [p for p in predictions if p['outcome'] == 'TRUE_NEGATIVE']
         unsupported_labels = unsupported_ground_truth_labels(raw_df, predictor)

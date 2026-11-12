@@ -1,6 +1,7 @@
 import json
 
 from database.db import get_db_connection
+from incident_manager import record_predictions
 
 class EventDAO:
     @staticmethod
@@ -39,6 +40,7 @@ class EventDAO:
         ) for event in alerts])
         conn.commit()
         conn.close()
+        record_predictions(events, 'CAN')
 
     @staticmethod
     def save_v2x_event(event_dict):
@@ -75,6 +77,7 @@ class EventDAO:
         ) for event in alerts])
         conn.commit()
         conn.close()
+        record_predictions(events, 'V2X')
 
     @staticmethod
     def save_veremi_events(events):
@@ -113,6 +116,7 @@ class EventDAO:
         ) for event in alerts])
         conn.commit()
         conn.close()
+        record_predictions(events, 'V2X')
 
     @staticmethod
     def save_model_performance(subsystem, eval_results_list):

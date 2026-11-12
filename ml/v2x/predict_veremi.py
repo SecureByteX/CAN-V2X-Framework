@@ -54,6 +54,7 @@ class VeReMiPredictor:
                 'receiver_id': str(row[RECEIVER_COLUMN]),
                 'actual_label': actual_label,
                 'attack_type': predicted_label,
+                'model_name': self.model_name,
                 'outcome': classify_prediction(actual_label, predicted_label, normal_label='Benign'),
                 'confidence': round(float(np.max(probabilities[index])), 4),
                 'severity': veremi_severity(predicted_label),
@@ -63,5 +64,9 @@ class VeReMiPredictor:
                 'speed_1': float(row['spd_1']),
                 'acceleration_0': float(row['acl_0']),
                 'acceleration_1': float(row['acl_1']),
+                'features': {
+                    str(name): float(row[name])
+                    for name in self.feature_names
+                },
             })
         return results
